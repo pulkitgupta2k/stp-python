@@ -16,9 +16,8 @@ class Topology:
             if self.root_bridge == None:
                 self.root_bridge = router
                 continue
-
             if (router.priority < self.root_bridge.priority) or \
-                    (router.priority == self.root_bridge.priority and router.mac_addr > self.root_bridge.mac_addr):
+                    (router.priority == self.root_bridge.priority and router.mac_addr < self.root_bridge.mac_addr):
                 self.root_bridge = router
 
     def run_stp(self):
@@ -33,10 +32,14 @@ class Topology:
                 heappush(priority_q, (f"{interface.wire.cost}.{int_no}", interface.neighbour()))
 
         while rem_bridges and priority_q:
-            interface = heappop(priority_q)[1]
+            prev_cost, interface = heappop(priority_q)
+            prev_cost = int(prev_cost.split(".")[0])
             if interface.router not in rem_bridges:
                 continue
             interface.status = 2 # root port
+            for int_no, next_interface in interface.router.interfaces.items():
+                if next_interface.neighbour():
+                    heappush(priority_q, (f"{next_interface.wire.cost + prev_cost}.{int_no}", next_interface.neighbour()))
             rem_bridges.remove(interface.router)
     
     def display(self):
@@ -81,6 +84,7 @@ class Router:
         self.interfaces[int_no] = self.Interface(self)
 
     def display(self):
+        print(self.mac_addr)
         for key, value in self.interfaces.items():
             print(f"{key}:{value.status}")
         print()
@@ -111,20 +115,33 @@ class Wire:
 
 if __name__ == "__main__":
     topology = Topology()
-    R1 = Router(interfaces={1, 2, 3}, mac_addr="00.00.00.00.00.01", priority=4096)
-    R2 = Router(interfaces={1, 2, 3}, mac_addr="00.00.00.00.00.02", priority=8192)
+    R0 = Router(interfaces={0, 1}, mac_addr="00.00.00.00.00.00", priority=4096)
+    R1 = Router(interfaces={0, 1}, mac_addr="00.00.00.00.00.01", priority=8192)
+    R2 = Router(interfaces={0, 1}, mac_addr="00.00.00.00.00.02", priority=8192)
+    R3 = Router(interfaces={0, 1}, mac_addr="00.00.00.00.00.03", priority=8192)
 
-    R1.display()
-    R2.display()
-
+    topology.add_router(R0)
     topology.add_router(R1)
     topology.add_router(R2)
+    topology.add_router(R3)
 
+    w0 = Wire(cost=19)
     w1 = Wire(cost=1)
-    w2 = Wire(cost=1)
+    w2 = Wire(cost=19)
+    w3 = Wire(cost=19)
 
-    w1.connect_to_int(R1.interfaces[1])
-    w1.connect_to_int(R2.interfaces[1])
+    w0.connect_to_int(R0.interfaces[0])
+    w0.connect_to_int(R1.interfaces[0])
+
+    w1.connect_to_int(R0.interfaces[1])
+    w1.connect_to_int(R2.interfaces[0])
+
+    w2.connect_to_int(R1.interfaces[1])
+    w2.connect_to_int(R3.interfaces[0])
+
+    w3.connect_to_int(R2.interfaces[1])
+    w3.connect_to_int(R3.interfaces[1])
+
     
     topology.run_stp()
     topology.display()
