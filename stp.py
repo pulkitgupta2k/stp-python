@@ -1,4 +1,4 @@
-import heapq
+from heapq import heappush, heappop
 
 class Topology:
     def __init__(self):
@@ -23,11 +23,25 @@ class Topology:
 
     def run_stp(self):
         self.calculate_root()
-        rem_bridges = self.routers
+        rem_bridges = self.routers.copy()
         rem_bridges.remove(self.root_bridge)
 
-        # priority_q = []
-        # heappush(priority_q, (f"{self.root_bridge.}"))
+        priority_q = []
+        for int_no, interface in self.root_bridge.interfaces.items():
+            if interface.neighbour():
+                interface.status = 1 # designated port
+                heappush(priority_q, (f"{interface.wire.cost}.{int_no}", interface.neighbour()))
+
+        while rem_bridges and priority_q:
+            interface = heappop(priority_q)[1]
+            if interface.router not in rem_bridges:
+                continue
+            interface.status = 2 # root port
+            rem_bridges.remove(interface.router)
+    
+    def display(self):
+        for router in self.routers:
+            router.display()
 
 class Router:
     def __init__(self, interfaces={}, mac_addr="00.00.00.00.00.00", priority=32768):
@@ -42,7 +56,7 @@ class Router:
         def __init__(self, router):
             self._id = id(self)
             self.wire = None
-            self.status = 0
+            self.status = 0 # 0: blocked ; 1: designated port ; 2: root port
             self.router = router
 
         def connect(self, wire):
@@ -51,13 +65,14 @@ class Router:
         def neighbour(self):
             if not self.wire or not self.wire.int_1 or not self.wire.int_2:
                 print("No wire connected.")
-                return
+                return None
 
             if self.wire.int_1 == self:
                 return self.wire.int_2
 
             if self.wire.int_2 == self:
                 return self.wire.int_1
+
 
     def add_interface(self, int_no):
         if int_no in self.interfaces:
@@ -66,9 +81,9 @@ class Router:
         self.interfaces[int_no] = self.Interface(self)
 
     def display(self):
-        print(self._id)
-        # for key, value in self.interfaces.items():
-        #     print(key, value.wire)
+        for key, value in self.interfaces.items():
+            print(f"{key}:{value.status}")
+        print()
 
 class Wire:
     def __init__(self, cost=19, int_1=None, int_2=None):
@@ -105,10 +120,11 @@ if __name__ == "__main__":
     topology.add_router(R1)
     topology.add_router(R2)
 
-    w1 = Wire()
-    w2 = Wire()
+    w1 = Wire(cost=1)
+    w2 = Wire(cost=1)
 
     w1.connect_to_int(R1.interfaces[1])
     w1.connect_to_int(R2.interfaces[1])
-
-    w1.display()    
+    
+    topology.run_stp()
+    topology.display()
